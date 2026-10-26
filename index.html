@@ -1136,7 +1136,8 @@
           <div>
             <h2>🏆 Papan Peringkat</h2>
             <p>
-              Total = skor + bonus kecepatan ⚡. Tersimpan di perangkat ini.
+              Total = skor + bonus kecepatan ⚡. Tersimpan online, dibagikan ke
+              semua pemain.
             </p>
           </div>
           <button class="btn ghost" id="bb">← Menu</button>
@@ -1155,7 +1156,7 @@
         ></div>
         <div class="board" id="bx"></div>
         <div class="row" style="justify-content: flex-end">
-          <button class="btn ghost sm" id="rs">Hapus semua skor</button>
+          <button class="btn ghost sm" id="rs" hidden>Hapus semua skor</button>
         </div>
       </section>
 
@@ -1739,6 +1740,7 @@
               ts: Date.now(),
             };
             sset("gc2_scores", scores);
+            if (window.FB) FB.save(scores[k]);
           }
           var arr = Object.keys(scores)
               .map(function (x) {
@@ -3473,6 +3475,14 @@
           hud();
           requestAnimationFrame(loop);
         };
+        window.addEventListener("fb-scores", function (e) {
+          var m = e.detail;
+          Object.keys(m).forEach(function (k) {
+            if (!scores[k] || m[k].total >= scores[k].total) scores[k] = m[k];
+          });
+          sset("gc2_scores", scores);
+          if (!$("#s-board").hidden) renderBoard();
+        });
         /* mulai */
         if (player && player.name) goMenu();
         else show("welcome");
@@ -3480,6 +3490,73 @@
           if (e.key === "Escape" && !$("#modal").hidden) closeModal();
         });
       })();
+    </script>
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+      import {
+        getDatabase,
+        ref,
+        get,
+        set,
+        onValue,
+      } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
+      var db = getDatabase(
+        initializeApp({
+          apiKey: "AIzaSyCk3b4iLhuT2sm1OnclpeAQx0oDklcyv7Q",
+          authDomain: "kkn2026-6fbc7.firebaseapp.com",
+          databaseURL:
+            "https://kkn2026-6fbc7-default-rtdb.asia-southeast1.firebasedatabase.app",
+          projectId: "kkn2026-6fbc7",
+          storageBucket: "kkn2026-6fbc7.firebasestorage.app",
+          messagingSenderId: "1084369346791",
+          appId: "1:1084369346791:web:e091cb14d61db89c428242",
+        }),
+      );
+      function sid(s) {
+        return (
+          s.game +
+          "|" +
+          s.grade +
+          "|" +
+          s.name.toLowerCase().replace(/[\/\s.$#\[\]]+/g, "_")
+        );
+      }
+      window.FB = {
+        save: async function (s) {
+          try {
+            var r = ref(db, "scores/" + sid(s)),
+              o = await get(r);
+            if (o.exists() && o.val().total >= s.total) return;
+            await set(r, {
+              name: s.name,
+              grade: s.grade,
+              game: s.game,
+              score: s.score,
+              speed: s.speed,
+              total: s.total,
+              ts: s.ts,
+            });
+          } catch (e) {
+            console.warn("Gagal simpan skor", e);
+          }
+        },
+      };
+      onValue(
+        ref(db, "scores"),
+        function (q) {
+          var m = {};
+          q.forEach(function (d) {
+            var v = d.val();
+            if (v && v.name)
+              m[v.game + "|" + String(v.name).toLowerCase() + "|" + v.grade] =
+                v;
+          });
+          window.dispatchEvent(new CustomEvent("fb-scores", { detail: m }));
+        },
+        function (e) {
+          console.warn("Gagal baca skor", e);
+        },
+      );
     </script>
   </body>
 </html>
